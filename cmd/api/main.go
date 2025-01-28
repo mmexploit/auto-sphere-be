@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"autoSphere/internal/server"
+	"github.com/Mahider-T/autoSphere/internal/server"
 )
 
 func gracefulShutdown(apiServer *http.Server, done chan bool) {

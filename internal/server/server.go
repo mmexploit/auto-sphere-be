@@ -7,23 +7,23 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Mahider-T/autoSphere/internal/database"
 	_ "github.com/joho/godotenv/autoload"
-
-	"autoSphere/internal/database"
 )
 
 type Server struct {
-	port int
-
-	db database.Service
+	port   int
+	models database.Models
+	db     database.Service
 }
 
 func NewServer() *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
+	db, dbConn := database.New()
 	NewServer := &Server{
-		port: port,
-
-		db: database.New(),
+		port:   port,
+		db:     db,
+		models: database.NewModels(dbConn),
 	}
 
 	// Declare Server config

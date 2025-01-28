@@ -38,10 +38,10 @@ var (
 	dbInstance *service
 )
 
-func New() Service {
+func New() (Service, *sql.DB) {
 	// Reuse Connection
 	if dbInstance != nil {
-		return dbInstance
+		return dbInstance, dbInstance.db
 	}
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&search_path=%s", username, password, host, port, database, schema)
 	db, err := sql.Open("pgx", connStr)
@@ -51,7 +51,7 @@ func New() Service {
 	dbInstance = &service{
 		db: db,
 	}
-	return dbInstance
+	return dbInstance, db
 }
 
 // Health checks the health of the database connection by pinging the database.

@@ -1,4 +1,4 @@
-module autoSphere
+module github.com/Mahider-T/autoSphere
 
 go 1.23.2
 
