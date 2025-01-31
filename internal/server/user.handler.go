@@ -6,7 +6,12 @@ import (
 	"net/http"
 
 	"github.com/Mahider-T/autoSphere/internal/database"
+	"github.com/Mahider-T/autoSphere/validator"
 )
+
+func (ser *Server) urlParameter(w http.ResponseWriter, r *http.Request) {
+	fmt.Print(r.URL.Query())
+}
 
 func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 
@@ -19,7 +24,7 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := ser.readJSON(w, r, &input); err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 		return
 	}
 	//TODO : Add validator to validate the inserted user
@@ -34,7 +39,7 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := ser.models.Users.Create(&user); err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -43,7 +48,7 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 	headers.Set("Location", fmt.Sprintf("/v1/users/%d", user.Id))
 	err := ser.writeJSON(w, http.StatusCreated, envelope{"user": user}, headers)
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 		return
 	}
 }
@@ -51,7 +56,7 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 func (ser Server) userGetOne(w http.ResponseWriter, r *http.Request) {
 	id, err := ser.readIDParam(r)
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -62,7 +67,7 @@ func (ser Server) userGetOne(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, database.ErrRecordNotFound):
 			ser.notFoundResponse(w, r)
 		default:
-			ser.serverErrorRespone(w, r, err)
+			ser.serverErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -71,7 +76,7 @@ func (ser Server) userGetOne(w http.ResponseWriter, r *http.Request) {
 	err = ser.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 	}
 
 }
@@ -79,7 +84,7 @@ func (ser Server) userGetOne(w http.ResponseWriter, r *http.Request) {
 func (ser Server) userDelete(w http.ResponseWriter, r *http.Request) {
 	id, err := ser.readIDParam(r)
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 	}
 
 	if err = ser.models.Users.Delete(id); err != nil {
@@ -87,13 +92,13 @@ func (ser Server) userDelete(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, database.ErrRecordNotFound):
 			ser.notFoundResponse(w, r)
 		default:
-			ser.serverErrorRespone(w, r, err)
+			ser.serverErrorResponse(w, r, err)
 			return
 		}
 	}
 	err = ser.writeJSON(w, http.StatusOK, envelope{"message": "user successfully deleted"}, nil)
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 	}
 
 }
@@ -113,7 +118,7 @@ func (ser Server) userPatch(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, database.ErrRecordNotFound):
 			ser.notFoundResponse(w, r)
 		default:
-			ser.serverErrorRespone(w, r, err)
+			ser.serverErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -128,7 +133,7 @@ func (ser Server) userPatch(w http.ResponseWriter, r *http.Request) {
 	err = ser.readJSON(w, r, &input)
 
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -149,13 +154,59 @@ func (ser Server) userPatch(w http.ResponseWriter, r *http.Request) {
 
 	err = ser.models.Users.Patch(user)
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 		return
 	}
 	err = ser.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 
 	if err != nil {
-		ser.serverErrorRespone(w, r, err)
+		ser.serverErrorResponse(w, r, err)
 	}
 
+}
+
+func (ser Server) getUsers(w http.ResponseWriter, r *http.Request) {
+
+	var input struct {
+		Name    string
+		Role    string //should be database.Role tho
+		Filters database.Filters
+	}
+
+	v := validator.New()
+
+	//TODO : Insert validation here
+	//especially role that it is one of the three valeus
+	input.Name = ser.parseString(r, "name", "")
+
+	role := ser.parseString(r, "role", "") // Capture the return value first
+	input.Role = role
+
+	var page int
+	page = ser.parseInt(r, "page", 1, v)
+
+	input.Filters.Page = page
+
+	var page_size int
+	page_size = ser.parseInt(r, "page_size", 10, v)
+	input.Filters.PageSize = page_size
+
+	input.Filters.Page = ser.parseInt(r, "page", 1, v)
+	input.Filters.PageSize = ser.parseInt(r, "page_size", 20, v)
+	input.Filters.Sort = ser.parseString(r, "sort", "id")
+
+	input.Filters.SortSafelist = []string{"id", "name", "created_at", "-id", "-name", "-created_at"}
+
+	if database.ValidateFilters(v, input.Filters); !v.Valid() {
+		ser.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	users, metadata, err := ser.models.Users.GetAll(input.Name, input.Role, input.Filters)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+	}
+	ser.writeJSON(w, http.StatusOK, envelope{"metadata": metadata, "users": users}, nil)
+
+	// fmt.Fprintf(w, "%+v\n", input)
 }
