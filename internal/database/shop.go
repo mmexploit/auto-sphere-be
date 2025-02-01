@@ -1,0 +1,187 @@
+package database
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/lib/pq"
+)
+
+type Shop struct {
+	Id           int       `json:"id"`
+	Name         string    `json:"name"`
+	Phone_Number string    `json:"phone_number"`
+	Email        string    `json:"email"`
+	Location     string    `json:"location"`
+	Coordinate   string    `json:"coordinate"` // Should be in "longitude latitude" format
+	Category     []string  `json:"category"`
+	Created_At   time.Time `json:"-"`
+}
+
+type ShopModel struct {
+	db *sql.DB
+}
+
+func (sh ShopModel) Create(shop *Shop) error {
+	query := `
+		INSERT INTO shops 
+			(name, phone_number, email, location, coordinate, category)
+		VALUES 
+			($1, $2, $3, $4, ST_GeogFromText($5), $6)
+		RETURNING id, name, phone_number, email, location, ST_AsText(coordinate), category, created_at;
+	`
+
+	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
+	defer close()
+	args := []interface{}{
+		shop.Name,
+		shop.Phone_Number,
+		shop.Email,
+		shop.Location,
+		fmt.Sprintf("SRID=4326;POINT(%s)", shop.Coordinate),
+		pq.Array(shop.Category)}
+	return sh.db.QueryRowContext(ctx, query, args...).Scan(&shop.Id, &shop.Name, &shop.Phone_Number, &shop.Email, &shop.Location, &shop.Coordinate, pq.Array(&shop.Category), &shop.Created_At)
+}
+
+func (sh ShopModel) Get(id int64) (*Shop, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `SELECT id, name, phone_number, email, location, ST_AsText(coordinate), category, created_at FROM shops WHERE id=$1`
+
+	var shop Shop
+	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
+	defer close()
+
+	err := sh.db.QueryRowContext(ctx, query, id).Scan(
+		&shop.Id, &shop.Name, &shop.Phone_Number, &shop.Email,
+		&shop.Location, &shop.Coordinate, pq.Array(&shop.Category), &shop.Created_At,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return &shop, nil
+}
+func (sh ShopModel) Patch(shop *Shop) error {
+	query := `
+		UPDATE shops 
+		SET name=$1, phone_number=$2, email=$3, location=$4, coordinate=ST_GeogFromText($5), category=$6 
+		WHERE id=$7 
+		RETURNING id, name, phone_number, email, location, ST_AsText(coordinate), category, created_at;
+	`
+
+	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
+	defer close()
+
+	args := []interface{}{
+		shop.Name,
+		shop.Phone_Number,
+		shop.Email,
+		shop.Location,
+		fmt.Sprintf("SRID=4326;POINT(%s)", shop.Coordinate),
+		pq.Array(shop.Category),
+		shop.Id,
+	}
+
+	return sh.db.QueryRowContext(ctx, query, args...).Scan(
+		&shop.Id, &shop.Name, &shop.Phone_Number, &shop.Email,
+		&shop.Location, &shop.Coordinate, pq.Array(shop.Category), &shop.Created_At,
+	)
+}
+func (sh ShopModel) Delete(id int64) error {
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+
+	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
+	defer close()
+
+	query := `DELETE FROM shops WHERE id=$1`
+	result, err := sh.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
+}
+
+func (sh ShopModel) GetAll(name, coordinate string, maxDistance int, filters Filters) ([]Shop, Metadata, error) {
+	var query string
+	var args []interface{}
+
+	baseQuery := `SELECT count(*) OVER(), id, name, phone_number, email, location, ST_AsText(coordinate), category, created_at
+				  FROM shops
+				  WHERE (to_tsvector('simple', name) @@ plainto_tsquery('simple', $1) OR $1 = '')`
+
+	args = append(args, name)
+
+	if coordinate != "" {
+		// Add the maxDistance filter to the query
+		query = fmt.Sprintf(`%s AND ST_Distance(coordinate, ST_GeogFromText($2)) <= $3
+							ORDER BY ST_Distance(coordinate, ST_GeogFromText($2)) ASC, %s %s, id ASC
+							LIMIT $4 OFFSET $5`, baseQuery, filters.sortColumn(), filters.sortDirection())
+
+		// Add the maxDistance argument and the rest of the pagination arguments
+		args = append(args, fmt.Sprintf("SRID=4326;POINT(%s)", coordinate), maxDistance, filters.limit(), filters.offset())
+	} else {
+		query = fmt.Sprintf(`%s ORDER BY %s %s, id ASC
+							LIMIT $2 OFFSET $3`, baseQuery, filters.sortColumn(), filters.sortDirection())
+
+		args = append(args, filters.limit(), filters.offset())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := sh.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	totalRecords := 0
+	shops := []Shop{}
+	for rows.Next() {
+		var shop Shop
+		err := rows.Scan(
+			&totalRecords,
+			&shop.Id,
+			&shop.Name,
+			&shop.Phone_Number,
+			&shop.Email,
+			&shop.Location,
+			&shop.Coordinate,
+			pq.Array(&shop.Category),
+			&shop.Created_At,
+		)
+		if err != nil {
+			return nil, Metadata{}, err
+		}
+		shops = append(shops, shop)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	metadata := filters.calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	return shops, metadata, nil
+}

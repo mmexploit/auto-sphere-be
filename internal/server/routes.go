@@ -18,6 +18,12 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("PATCH /users/{id}", s.userPatch)
 	mux.HandleFunc("GET /users", s.getUsers)
 
+	mux.HandleFunc("GET /shops/{id}", s.shopGetOne)
+	mux.HandleFunc("POST /shops", s.shopCreate)
+	mux.HandleFunc("DELETE /shops/{id}", s.shopDelete)
+	mux.HandleFunc("PATCH /shops/{id}", s.shopPatch)
+	mux.HandleFunc("GET /shops", s.getShops)
+
 	mux.HandleFunc("/health", s.healthHandler)
 
 	// Wrap the mux with CORS middleware

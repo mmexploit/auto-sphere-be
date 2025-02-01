@@ -43,19 +43,6 @@ func (um UserModel) Create(user *User) error {
 	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
 }
 
-// func (um UserModel) GetAll(limit, skip int) error {
-
-// const query = `SELECT
-// 			   		name, email, phone_number, role, created_at
-// 			   from users ORDER BY
-// 			   		created_ad DESC
-// 				LIMIT=$1
-// 				OFFSET=$2 `
-
-// 	return nil
-
-// }
-
 func (ser UserModel) Get(id int64) (*User, error) {
 
 	if id < 1 {
