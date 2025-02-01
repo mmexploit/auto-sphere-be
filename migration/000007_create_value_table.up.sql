@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS category_members(
+    id SERIAL PRIMARY KEY,
+    value TEXT NOT NULL UNIQUE
+) 

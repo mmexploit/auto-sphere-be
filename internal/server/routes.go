@@ -30,6 +30,12 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("PUT /categories/{id}", s.catPut)
 	mux.HandleFunc("GET /categories", s.catGetAll)
 
+	mux.HandleFunc("GET /values/{id}", s.catMemberGetOne)
+	mux.HandleFunc("POST /values", s.catMemberCreate)
+	mux.HandleFunc("DELETE /values/{id}", s.catMemberDelete)
+	mux.HandleFunc("PUT /values/{id}", s.catMemberPut)
+	mux.HandleFunc("GET /values", s.catMemberGetAll)
+
 	mux.HandleFunc("/health", s.healthHandler)
 
 	// Wrap the mux with CORS middleware
