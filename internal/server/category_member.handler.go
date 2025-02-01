@@ -10,8 +10,9 @@ import (
 
 func (ser Server) catMemberCreate(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Id    int    `json:"id"`
-		Value string `json:"value"`
+		Id         int    `json:"id"`
+		Value      string `json:"value"`
+		CategoryId int    `json:"category_id"`
 	}
 
 	err := ser.readJSON(w, r, &input)
@@ -20,15 +21,16 @@ func (ser Server) catMemberCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	catMember := database.CategoryMember{
-		Id:    input.Id,
-		Value: input.Value,
+		Id:         input.Id,
+		Value:      input.Value,
+		CategoryId: input.CategoryId,
 	}
 	if err = ser.models.CategoryMember.Create(&catMember); err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/v1/category-members/%d", catMember.Id))
+	headers.Set("Location", fmt.Sprintf("/v1/values/%d", catMember.Id))
 	err = ser.writeJSON(w, http.StatusCreated, envelope{"category_member": catMember}, headers)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
@@ -89,7 +91,8 @@ func (ser Server) catMemberPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
-		Value string `json:"value"`
+		Value      *string `json:"value"`
+		CategoryId *int    `json:"category_id"`
 	}
 
 	err = ser.readJSON(w, r, &input)
@@ -97,9 +100,15 @@ func (ser Server) catMemberPut(w http.ResponseWriter, r *http.Request) {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
-	catMember.Value = input.Value
+	if input.Value != nil {
+		catMember.Value = *input.Value
+	}
 
-	if err = ser.models.CategoryMember.Put(catMember); err != nil {
+	if input.CategoryId != nil {
+		catMember.CategoryId = *input.CategoryId
+	}
+
+	if err = ser.models.CategoryMember.Patch(catMember); err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
