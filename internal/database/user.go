@@ -70,7 +70,6 @@ func (ser UserModel) Get(id int64) (*User, error) {
 		}
 
 	}
-	fmt.Print("user from repo", user)
 	return &user, nil
 }
 func (ser UserModel) Patch(user *User) error {
