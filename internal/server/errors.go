@@ -39,3 +39,17 @@ func (ser *Server) methodNotAllowd(w http.ResponseWriter, r *http.Request) {
 func (ser *Server) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {
 	ser.errorResponse(w, r, http.StatusUnprocessableEntity, errors)
 }
+
+func (ser *Server) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
+	message := "you must be authenticated to access this resource"
+	ser.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+func (ser *Server) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {
+	message := "your user account must be activated to access this resource"
+	ser.errorResponse(w, r, http.StatusForbidden, message)
+}
+
+func (ser *Server) invalidCredentials(w http.ResponseWriter, r *http.Request) {
+	message := "Invalid username and password"
+	ser.errorResponse(w, r, http.StatusUnauthorized, message)
+}

@@ -34,7 +34,7 @@ func mustStartPostgresContainer() (func(context.Context, ...testcontainers.Termi
 	}
 
 	database = dbName
-	password = dbPwd
+	db_password = dbPwd
 	username = dbUser
 
 	dbHost, err := dbContainer.Host(context.Background())

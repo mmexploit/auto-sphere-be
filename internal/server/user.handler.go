@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/Mahider-T/autoSphere/internal/database"
 	"github.com/Mahider-T/autoSphere/validator"
@@ -29,13 +30,18 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	//TODO : Add validator to validate the inserted user
 
-	//Insert the user using the repository insert method
 	user := database.User{
-		Name:         input.Name,
-		Email:        input.Email,
-		Password:     input.Password,
+		Name:  input.Name,
+		Email: input.Email,
+		// Password:     input.Password,
 		Phone_Number: input.Phone_Number,
 		Role:         input.Role,
+	}
+
+	err := user.Password.Set(input.Password)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
 	}
 
 	if err := ser.models.Users.Create(&user); err != nil {
@@ -46,7 +52,7 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 	//return the result with the response write (write JSON)
 	headers := make(http.Header)
 	headers.Set("Location", fmt.Sprintf("/v1/users/%d", user.Id))
-	err := ser.writeJSON(w, http.StatusCreated, envelope{"user": user}, headers)
+	err = ser.writeJSON(w, http.StatusCreated, envelope{"user": user}, headers)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
@@ -124,10 +130,11 @@ func (ser Server) userPatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
-		Name         *string        `json:"name"`
-		Email        *string        `json:"email"`
-		Phone_Number *string        `json:"phone_number"`
-		Role         *database.Role `json:"role"`
+		Name          *string        `json:"name"`
+		Email         *string        `json:"email"`
+		Phone_Number  *string        `json:"phone_number"`
+		Role          *database.Role `json:"role"`
+		Refresh_Token *string        `json:"refresh_token"`
 	}
 
 	err = ser.readJSON(w, r, &input)
@@ -148,6 +155,9 @@ func (ser Server) userPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Role != nil {
 		user.Role = *input.Role
+	}
+	if input.Refresh_Token != nil {
+		user.Refresh_Token = *input.Refresh_Token
 	}
 
 	//Todo : Validate the input here
@@ -209,4 +219,93 @@ func (ser Server) getUsers(w http.ResponseWriter, r *http.Request) {
 	ser.writeJSON(w, http.StatusOK, envelope{"metadata": metadata, "users": users}, nil)
 
 	// fmt.Fprintf(w, "%+v\n", input)
+}
+
+func (ser Server) login(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := ser.readJSON(w, r, &input); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	user, err := ser.models.Users.GetByEmail(input.Email)
+	if err != nil {
+		switch err {
+		case database.ErrRecordNotFound:
+			ser.notFoundResponse(w, r)
+			return
+		default:
+			ser.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
+	matches, err := user.Password.Matches(input.Password)
+
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+	if !matches {
+		ser.invalidCredentials(w, r)
+		return
+	}
+
+	access_token, err := ser.createToken(user, 10*time.Minute)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	refresh_token, err := ser.createToken(user, 7*24*time.Hour)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+	user.Refresh_Token = refresh_token
+
+	err = ser.models.Users.Patch(&user)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	ser.writeJSON(w, http.StatusOK, envelope{"access_token": access_token, "refresh_token": refresh_token}, nil)
+
+}
+
+func (ser Server) refreshToken(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Refresh_Token string `json:"refresh_token"`
+	}
+
+	if err := ser.readJSON(w, r, &input); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+	user, err := ser.models.Users.GetByRefreshToken(input.Refresh_Token)
+	if err != nil {
+		switch {
+		case errors.Is(database.ErrRecordNotFound, err):
+			ser.notFoundResponse(w, r)
+		default:
+			ser.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+	err = ser.verifyToken(input.Refresh_Token)
+	if err != nil {
+		ser.authenticationRequiredResponse(w, r)
+		return
+	}
+	access_token, err := ser.createToken(*user, 10*time.Minute)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+	ser.writeJSON(w, http.StatusOK, envelope{"access_token": access_token}, nil)
 }

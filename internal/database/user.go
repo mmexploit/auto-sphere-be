@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Role string
@@ -17,17 +19,45 @@ const (
 )
 
 type User struct {
-	Id           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	Password     string    `json:"-"`
-	Phone_Number string    `json:"phone_number"`
-	Role         Role      `json:"role"`
-	Created_At   time.Time `json:"-"`
+	Id            int64     `json:"id"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	Password      password  `json:"-"`
+	Phone_Number  string    `json:"phone_number"`
+	Role          Role      `json:"role"`
+	Created_At    time.Time `json:"-"`
+	Refresh_Token string    `json:"refresh_token"`
 }
 
 type UserModel struct {
 	db *sql.DB
+}
+type password struct {
+	plaintext *string
+	hash      []byte
+}
+
+func (p *password) Set(plaintextPassword string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), 12)
+	if err != nil {
+		return err
+	}
+	p.plaintext = &plaintextPassword
+	p.hash = hash
+	return nil
+}
+
+func (p *password) Matches(plaintextPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(p.hash, []byte(plaintextPassword))
+	if err != nil {
+		switch {
+		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func (um UserModel) Create(user *User) error {
@@ -39,11 +69,30 @@ func (um UserModel) Create(user *User) error {
 				   (name, email, password, phone_number, role) 
 				   VALUES ($1,$2,$3,$4,$5)
 				   RETURNING id, name, email, phone_number, role`
-	args := []interface{}{user.Name, user.Email, user.Password, user.Phone_Number, user.Role}
+	args := []interface{}{user.Name, user.Email, user.Password.hash, user.Phone_Number, user.Role}
 	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
 }
 
-func (ser UserModel) Get(id int64) (*User, error) {
+func (um UserModel) GetByEmail(email string) (User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	query := `SELECT id, name, email, phone_number, role, password, refresh_token FROM users WHERE email=$1`
+	var user User
+	err := um.db.QueryRowContext(ctx, query, email).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role, &user.Password.hash, &user.Refresh_Token)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return User{}, ErrRecordNotFound
+		default:
+			return User{}, err
+		}
+	}
+	return user, nil
+}
+
+func (um UserModel) Get(id int64) (*User, error) {
 
 	if id < 1 {
 		return nil, ErrRecordNotFound
@@ -56,7 +105,7 @@ func (ser UserModel) Get(id int64) (*User, error) {
 
 	defer cancel()
 
-	err := ser.db.QueryRowContext(ctx, query, id).Scan(
+	err := um.db.QueryRowContext(ctx, query, id).Scan(
 		&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role,
 	)
 	fmt.Print("Error 1", err)
@@ -72,26 +121,29 @@ func (ser UserModel) Get(id int64) (*User, error) {
 	}
 	return &user, nil
 }
-func (ser UserModel) Patch(user *User) error {
+func (um UserModel) Patch(user *User) error {
+
+	// fmt.Print("MR patched user is -   -   ", user)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
 	defer cancel()
 
-	query := `UPDATE users SET name=$1, email=$2, phone_number=$3, role=$4 WHERE id=$5 RETURNING id, name, email, phone_number, role`
+	query := `UPDATE users SET name=$1, email=$2, phone_number=$3, role=$4, refresh_token=$5 WHERE id=$6 RETURNING id, name, email, phone_number, role`
 
 	args := []interface{}{
 		user.Name,
 		user.Email,
 		user.Phone_Number,
 		user.Role,
+		user.Refresh_Token,
 		user.Id,
 	}
 
-	return ser.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
+	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
 }
 
-func (ser UserModel) Delete(id int64) error {
+func (um UserModel) Delete(id int64) error {
 
 	if id < 1 {
 		return ErrRecordNotFound
@@ -102,7 +154,7 @@ func (ser UserModel) Delete(id int64) error {
 
 	query := `DELETE FROM users WHERE id=$1`
 
-	result, err := ser.db.ExecContext(ctx, query, id)
+	result, err := um.db.ExecContext(ctx, query, id)
 
 	if err != nil {
 		return err
@@ -120,7 +172,7 @@ func (ser UserModel) Delete(id int64) error {
 	return nil
 }
 
-func (ser UserModel) GetAll(name string, role string, filters Filters) ([]User, Metadata, error) {
+func (um UserModel) GetAll(name string, role string, filters Filters) ([]User, Metadata, error) {
 
 	query := fmt.Sprintf(`SELECT count(*) OVER(), id, name, email, phone_number, role, created_at
 			  FROM users
@@ -132,7 +184,7 @@ func (ser UserModel) GetAll(name string, role string, filters Filters) ([]User, 
 	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
 	defer close()
 	// rows, err := ser.db.QueryContext(ctx, query)
-	rows, err := ser.db.QueryContext(ctx, query, name, role, filters.limit(), filters.offset())
+	rows, err := um.db.QueryContext(ctx, query, name, role, filters.limit(), filters.offset())
 
 	if err != nil {
 		return nil, Metadata{}, err
@@ -165,4 +217,26 @@ func (ser UserModel) GetAll(name string, role string, filters Filters) ([]User, 
 	metadata := filters.calculateMetadata(totalRecords, filters.Page, filters.PageSize)
 
 	return users, metadata, nil
+}
+
+func (um UserModel) GetByRefreshToken(refreshToken string) (*User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	query := `SELECT id, role from users
+			  WHERE refresh_token=$1`
+	var user User
+	err := um.db.QueryRowContext(ctx, query, refreshToken).Scan(&user.Id, &user.Role)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+
+	}
+
+	return &user, nil
 }
