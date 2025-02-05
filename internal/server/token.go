@@ -28,19 +28,42 @@ func (ser Server) createToken(user database.User, ttl time.Duration) (string, er
 
 	return tokenString, nil
 }
-
-func (ser Server) verifyToken(tokenString string) error {
+func (ser Server) verifyToken(tokenString string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Make sure the signing method is expected
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return secretKey, nil
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !token.Valid {
-		return fmt.Errorf("invalid token")
+		return nil, fmt.Errorf("invalid token")
 	}
 
-	return nil
+	// Extract and return the claims if the token is valid
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		return claims, nil
+	}
+	return nil, fmt.Errorf("invalid claims")
 }
+
+// func (ser Server) verifyToken(tokenString string) error {
+// 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+// 		return secretKey, nil
+// 	})
+
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	if !token.Valid {
+// 		return fmt.Errorf("invalid token")
+// 	}
+
+// 	return nil
+// }

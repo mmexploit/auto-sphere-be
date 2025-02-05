@@ -290,14 +290,14 @@ func (ser Server) refreshToken(w http.ResponseWriter, r *http.Request) {
 	user, err := ser.models.Users.GetByRefreshToken(input.Refresh_Token)
 	if err != nil {
 		switch {
-		case errors.Is(database.ErrRecordNotFound, err):
+		case errors.Is(err, database.ErrRecordNotFound):
 			ser.notFoundResponse(w, r)
 		default:
 			ser.serverErrorResponse(w, r, err)
 		}
 		return
 	}
-	err = ser.verifyToken(input.Refresh_Token)
+	_, err = ser.verifyToken(input.Refresh_Token)
 	if err != nil {
 		ser.authenticationRequiredResponse(w, r)
 		return

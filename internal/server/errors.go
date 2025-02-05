@@ -44,12 +44,17 @@ func (ser *Server) authenticationRequiredResponse(w http.ResponseWriter, r *http
 	message := "you must be authenticated to access this resource"
 	ser.errorResponse(w, r, http.StatusUnauthorized, message)
 }
-func (ser *Server) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {
-	message := "your user account must be activated to access this resource"
+func (ser *Server) forbiddenErrorResponse(w http.ResponseWriter, r *http.Request) {
+	message := "Forbidden"
 	ser.errorResponse(w, r, http.StatusForbidden, message)
 }
 
 func (ser *Server) invalidCredentials(w http.ResponseWriter, r *http.Request) {
 	message := "Invalid username and password"
+	ser.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+
+func (ser *Server) unauthorized(w http.ResponseWriter, r *http.Request) {
+	message := "Unauthorized"
 	ser.errorResponse(w, r, http.StatusUnauthorized, message)
 }
