@@ -14,6 +14,7 @@ type Models struct {
 	Shops          ShopModel
 	Category       CategoryModel
 	CategoryMember CategoryMemberModel
+	ShopCategory   ShopCategoryModel
 }
 
 func NewModels(db *sql.DB) Models {
@@ -22,5 +23,6 @@ func NewModels(db *sql.DB) Models {
 		Shops:          ShopModel{db: db},
 		Category:       CategoryModel{db: db},
 		CategoryMember: CategoryMemberModel{db: db},
+		ShopCategory:   ShopCategoryModel{db: db},
 	}
 }

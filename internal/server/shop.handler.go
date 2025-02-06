@@ -17,6 +17,8 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 		Location     string   `json:"location"`
 		Coordinate   string   `json:"coordinate"`
 		Category     []string `json:"category"`
+		Thumbnail    string   `json:"thumbnail"`
+		Photos       []string `json:"photos"`
 	}
 
 	if err := ser.readJSON(w, r, &input); err != nil {
@@ -30,7 +32,8 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 		Email:        input.Email,
 		Location:     input.Location,
 		Coordinate:   input.Coordinate,
-		Category:     input.Category,
+		Thumbnail:    &input.Thumbnail,
+		Photos:       input.Photos,
 	}
 
 	if err := ser.models.Shops.Create(&shop); err != nil {
@@ -118,6 +121,8 @@ func (ser Server) shopPatch(w http.ResponseWriter, r *http.Request) {
 		Location     *string   `json:"location"`
 		Coordinate   *string   `json:"coordinate"`
 		Category     *[]string `json:"category"`
+		Thumbnail    *string   `json:"thumbnail"`
+		Photos       *[]string `json:"photos"`
 	}
 
 	err = ser.readJSON(w, r, &input)
@@ -138,10 +143,9 @@ func (ser Server) shopPatch(w http.ResponseWriter, r *http.Request) {
 	if input.Location != nil {
 		shop.Location = *input.Location
 	}
-	if input.Category != nil {
-		shop.Category = *input.Category
+	if input.Photos != nil {
+		shop.Photos = *input.Photos
 	}
-
 	if input.Coordinate != nil {
 
 		shop.Coordinate = *input.Coordinate
@@ -168,10 +172,11 @@ func (ser Server) shopPatch(w http.ResponseWriter, r *http.Request) {
 }
 func (ser Server) getShops(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Name         string
-		Coordinate   string
-		Max_Distance int
-		Filters      database.Filters
+		Name             string
+		Coordinate       string
+		Max_Distance     int
+		Category_Members []string
+		Filters          database.Filters
 	}
 
 	v := validator.New()
@@ -186,17 +191,21 @@ func (ser Server) getShops(w http.ResponseWriter, r *http.Request) {
 	input.Filters.Sort = ser.parseString(r, "sort", "id")
 	input.Filters.SortSafelist = []string{"id", "name", "created_at", "-id", "-name", "-created_at"}
 
+	category_members, err := ser.parseCSV(r, "category_members", []string{})
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+	input.Category_Members = category_members
+	// fmt.Print("Category members are :- ", input.Category_Members)
 	// Validate filters
 	if database.ValidateFilters(v, input.Filters); !v.Valid() {
 		ser.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	fmt.Printf("Coordinates my boy%v\n", input.Coordinate)
-	fmt.Printf("distance my boy%v\n", input.Max_Distance)
-
 	// Fetch shops
-	shops, metadata, err := ser.models.Shops.GetAll(input.Name, input.Coordinate, input.Max_Distance, input.Filters)
+	shops, metadata, err := ser.models.Shops.GetAll(input.Name, input.Coordinate, input.Max_Distance, input.Filters, input.Category_Members)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return

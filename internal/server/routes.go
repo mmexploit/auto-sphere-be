@@ -36,9 +36,10 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("POST /values", s.catMemberCreate)
 	mux.HandleFunc("DELETE /values/{id}", s.catMemberDelete)
 	mux.HandleFunc("PATCH /values/{id}", s.catMemberPut)
-	// mux.HandleFunc("GET /values", s.catMemberGetAll)
+	mux.HandleFunc("GET /values", s.catMemberGetAll)
+	// mux.HandleFunc("/values", s.RoleMiddleware(s.catMemberGetAll, "ADMIN"))
 
-	mux.HandleFunc("/values", s.RoleMiddleware(s.catMemberGetAll, "ADMIN"))
+	mux.HandleFunc("POST /shopCategories", s.scCreate)
 
 	mux.HandleFunc("/health", s.healthHandler)
 
