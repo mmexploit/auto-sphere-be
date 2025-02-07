@@ -147,6 +147,9 @@ func (sh ShopModel) GetAll(name, coordinate string, maxDistance int, filters Fil
 		for _, value := range categoryValues {
 			args = append(args, value)
 		}
+
+		// Group by shop ID and ensure the shop has all the required category values
+		baseQuery += ` GROUP BY shops.id HAVING COUNT(DISTINCT category_members.value) = ` + fmt.Sprintf("%d", len(categoryValues))
 	}
 
 	if coordinate != "" {
