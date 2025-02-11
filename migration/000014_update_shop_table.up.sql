@@ -1,0 +1,2 @@
+ALTER TABLE shops ADD COLUMN approved BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE shops ADD COLUMN created_by int REFERENCES users(id);

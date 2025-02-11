@@ -23,6 +23,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("GET /shops/{id}", s.shopGetOne)
 	mux.HandleFunc("POST /shops", s.shopCreate)
 	mux.HandleFunc("DELETE /shops/{id}", s.shopDelete)
+	mux.HandleFunc("PATCH /shops/approval/{id}", s.updateAppoval)
 	mux.HandleFunc("PATCH /shops/{id}", s.shopPatch)
 	mux.HandleFunc("GET /shops", s.getShops)
 

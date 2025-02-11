@@ -214,3 +214,29 @@ func (ser Server) getShops(w http.ResponseWriter, r *http.Request) {
 	// Return JSON response
 	ser.writeJSON(w, http.StatusOK, envelope{"metadata": metadata, "shops": shops}, nil)
 }
+
+func (ser Server) updateAppoval(w http.ResponseWriter, r *http.Request) {
+
+	id, err := ser.readIDParam(r)
+	if err != nil {
+		ser.notFoundResponse(w, r)
+		return
+	}
+
+	var input struct {
+		Approval_Status database.ShopApprovalStatus `json:"approval_status"`
+	}
+
+	if err := ser.readJSON(w, r, &input); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if err := ser.models.Shops.UpdateAppoval(id, input.Approval_Status); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	ser.writeJSON(w, http.StatusOK, envelope{"id": id, "approval_status": input.Approval_Status}, nil)
+
+}
