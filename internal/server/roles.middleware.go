@@ -1,8 +1,16 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
+)
+
+type UserContextKey string
+
+const (
+	UserIDKey   UserContextKey = "userID"
+	UserRoleKey UserContextKey = "userRole"
 )
 
 func (ser Server) RoleMiddleware(handler http.HandlerFunc, requiredRoles ...string) http.HandlerFunc {
@@ -30,6 +38,16 @@ func (ser Server) RoleMiddleware(handler http.HandlerFunc, requiredRoles ...stri
 			http.Error(w, "Forbidden: You do not have the required role", http.StatusForbidden)
 			return
 		}
+
+		userID, ok := claims["sub"]
+		if !ok {
+			http.Error(w, "Invalid token: user ID not found", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+		ctx = context.WithValue(ctx, UserRoleKey, userRole)
+		r = r.WithContext(ctx)
 
 		handler(w, r)
 	}

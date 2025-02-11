@@ -21,7 +21,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("POST /users/token/refresh", s.refreshToken)
 
 	mux.HandleFunc("GET /shops/{id}", s.shopGetOne)
-	mux.HandleFunc("POST /shops", s.shopCreate)
+	// mux.HandleFunc("POST /shops", s.shopCreate)
+	mux.HandleFunc("POST /shops", s.RoleMiddleware(s.shopCreate, "ADMIN", "OPERATOR"))
 	mux.HandleFunc("DELETE /shops/{id}", s.shopDelete)
 	mux.HandleFunc("PATCH /shops/approval/{id}", s.updateAppoval)
 	mux.HandleFunc("PATCH /shops/{id}", s.shopPatch)
@@ -38,7 +39,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("DELETE /values/{id}", s.catMemberDelete)
 	mux.HandleFunc("PATCH /values/{id}", s.catMemberPut)
 	// mux.HandleFunc("GET /values", s.catMemberGetAll)
-	mux.HandleFunc("/values", s.RoleMiddleware(s.catMemberGetAll, "ADMIN"))
+	mux.HandleFunc("GET /values", s.RoleMiddleware(s.catMemberGetAll, "OPERATOR"))
 
 	mux.HandleFunc("POST /shopCategories", s.scCreate)
 

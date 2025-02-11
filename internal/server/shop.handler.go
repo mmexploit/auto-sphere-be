@@ -10,15 +10,19 @@ import (
 )
 
 func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
+
+	userId := r.Context().Value(UserIDKey).(float64)
+
 	var input struct {
-		Name         string   `json:"name"`
-		Phone_Number string   `json:"phone_number"`
-		Email        string   `json:"email"`
-		Location     string   `json:"location"`
-		Coordinate   string   `json:"coordinate"`
-		Category     []string `json:"category"`
-		Thumbnail    string   `json:"thumbnail"`
-		Photos       []string `json:"photos"`
+		Name            string                      `json:"name"`
+		Phone_Number    string                      `json:"phone_number"`
+		Email           string                      `json:"email"`
+		Location        string                      `json:"location"`
+		Coordinate      string                      `json:"coordinate"`
+		Category        []string                    `json:"category"`
+		Thumbnail       string                      `json:"thumbnail"`
+		Photos          []string                    `json:"photos"`
+		Approval_Status database.ShopApprovalStatus `json:"approval_status"`
 	}
 
 	if err := ser.readJSON(w, r, &input); err != nil {
@@ -27,13 +31,15 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shop := database.Shop{
-		Name:         input.Name,
-		Phone_Number: input.Phone_Number,
-		Email:        input.Email,
-		Location:     input.Location,
-		Coordinate:   input.Coordinate,
-		Thumbnail:    &input.Thumbnail,
-		Photos:       input.Photos,
+		Name:            input.Name,
+		Phone_Number:    input.Phone_Number,
+		Email:           input.Email,
+		Location:        input.Location,
+		Coordinate:      input.Coordinate,
+		Thumbnail:       &input.Thumbnail,
+		Photos:          input.Photos,
+		Approval_Status: input.Approval_Status,
+		Created_By:      int(userId),
 	}
 
 	if err := ser.models.Shops.Create(&shop); err != nil {
