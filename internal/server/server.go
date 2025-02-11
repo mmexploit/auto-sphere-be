@@ -2,13 +2,13 @@ package server
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/Mahider-T/autoSphere/internal/database"
+	"github.com/Mahider-T/autoSphere/internal/jsonlog"
 	_ "github.com/joho/godotenv/autoload"
 )
 
@@ -16,13 +16,13 @@ type Server struct {
 	port   int
 	models database.Models
 	db     database.Service
-	logger *log.Logger
+	logger *jsonlog.Logger
 }
 
 func NewServer() *http.Server {
 
-	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
-
+	// logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	db, dbConn := database.New()
 	NewServer := &Server{

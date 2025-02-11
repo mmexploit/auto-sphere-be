@@ -6,7 +6,11 @@ import (
 )
 
 func (ser *Server) logError(r *http.Request, err error) {
-	ser.logger.Println(err)
+	// ser.logger.Println(err)
+	ser.logger.PrintError(err, map[string]string{
+		"request_method": r.Method,
+		"request_url":    r.URL.String(),
+	})
 }
 
 func (ser *Server) errorResponse(w http.ResponseWriter, r *http.Request, status int, message interface{}) {
@@ -20,7 +24,7 @@ func (ser *Server) errorResponse(w http.ResponseWriter, r *http.Request, status 
 }
 
 func (ser *Server) serverErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
-	ser.logger.Println(r, err)
+	ser.logError(r, err)
 
 	message := "The server has enountered an error and could not process your request"
 	ser.errorResponse(w, r, http.StatusInternalServerError, message)
