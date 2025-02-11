@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Mahider-T/autoSphere/validator"
 	"github.com/lib/pq"
 )
 
@@ -31,6 +33,19 @@ type Shop struct {
 	Photos          []string           `json:"photos"`
 	Created_At      time.Time          `json:"-"`
 	Created_By      int                `json:"created_by"`
+}
+
+func ValidateShop(v *validator.Validator, sh *Shop) {
+	var phoneRegex = regexp.MustCompile(`^(09|07)\d{8}$`)
+	var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	var coordinateRegex = regexp.MustCompile(`^\d+ \d+$`)
+
+	v.Check(sh.Name != "", "name", "name must not be empty")
+	v.Check(sh.Location != "", "location", "location must not be empty")
+	v.Check(sh.Coordinate != "", "coordinate", "coordinate can not me empty")
+	v.Check(validator.Matches(sh.Coordinate, coordinateRegex), "coordinate", "coordinate must be logitude and latitute separated by space")
+	v.Check(validator.Matches(sh.Phone_Number, phoneRegex), "phone_number", "phone number must start with 07 or 09 and must be 10 digits long")
+	v.Check(validator.Matches(sh.Email, emailRegex), "email", "not a valid email")
 }
 
 type ShopModel struct {

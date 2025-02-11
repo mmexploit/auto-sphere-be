@@ -42,6 +42,12 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 		Created_By:      int(userId),
 	}
 
+	v := validator.New()
+	if database.ValidateShop(v, &shop); !v.Valid() {
+		ser.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
 	if err := ser.models.Shops.Create(&shop); err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
