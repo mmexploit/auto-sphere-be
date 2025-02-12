@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -49,11 +50,23 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ser.mailer.Send(user.Email, "user_welcome.tmpl", user)
+	token, err := ser.models.Tokens.New(user.Id, 3*24*time.Hour, database.ScopeActivation)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
+
+	go func() {
+
+		data := map[string]interface{}{
+			"userId":          user.Id,
+			"activationToken": token.Plaintext,
+		}
+		err = ser.mailer.Send(user.Email, "user_welcome.tmpl", data)
+		if err != nil {
+			ser.logger.PrintError(err, nil)
+		}
+	}()
 
 	//return the result with the response write (write JSON)
 	headers := make(http.Header)
@@ -314,4 +327,54 @@ func (ser Server) refreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ser.writeJSON(w, http.StatusOK, envelope{"access_token": access_token}, nil)
+}
+
+func (ser Server) activate(w http.ResponseWriter, r *http.Request) {
+
+	var input struct {
+		PlainText string `json:"plain_text"`
+	}
+
+	err := ser.readJSON(w, r, &input)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	fmt.Println("Plain text is :---", input.PlainText)
+
+	hash := sha256.Sum256([]byte(input.PlainText))
+
+	fmt.Println("Hash is :---- ", string(hash[:]))
+
+	user, err := ser.models.Users.GetToken(hash, database.ScopeActivation, time.Now())
+	if err != nil {
+		switch {
+		case errors.Is(err, database.ErrRecordNotFound):
+			ser.notFoundResponse(w, r)
+			return
+		default:
+			ser.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
+	fmt.Println("User from token before update is :--- ", user)
+
+	user.Is_Verified = true
+
+	err = ser.models.Users.Patch(user)
+
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	fmt.Println("User from token after update is :--- ", user)
+
+	err = ser.writeJSON(w, http.StatusOK, envelope{"user_activation": user.Is_Verified}, nil)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
 }
