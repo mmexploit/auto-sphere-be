@@ -19,6 +19,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("GET /users", s.getUsers)
 	mux.HandleFunc("POST /users/login", s.login)
 	mux.HandleFunc("POST /users/token/refresh", s.refreshToken)
+	mux.HandleFunc("PUT /users/activated", s.activate)
 
 	mux.HandleFunc("GET /shops/{id}", s.shopGetOne)
 	// mux.HandleFunc("POST /shops", s.shopCreate)

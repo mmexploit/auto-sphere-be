@@ -22,6 +22,7 @@ type User struct {
 	Id            int64     `json:"id"`
 	Name          string    `json:"name"`
 	Email         string    `json:"email"`
+	Is_Verified   bool      `json:"is_verified"`
 	Password      password  `json:"-"`
 	Phone_Number  string    `json:"phone_number"`
 	Role          Role      `json:"role"`
@@ -129,7 +130,7 @@ func (um UserModel) Patch(user *User) error {
 
 	defer cancel()
 
-	query := `UPDATE users SET name=$1, email=$2, phone_number=$3, role=$4, refresh_token=$5 WHERE id=$6 RETURNING id, name, email, phone_number, role`
+	query := `UPDATE users SET name=$1, email=$2, phone_number=$3, role=$4, refresh_token=$5, is_verified=$6 WHERE id=$7 RETURNING id, name, email, phone_number, role, is_verified`
 
 	args := []interface{}{
 		user.Name,
@@ -137,10 +138,11 @@ func (um UserModel) Patch(user *User) error {
 		user.Phone_Number,
 		user.Role,
 		user.Refresh_Token,
+		user.Is_Verified,
 		user.Id,
 	}
 
-	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
+	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role, &user.Is_Verified)
 }
 
 func (um UserModel) Delete(id int64) error {
@@ -239,4 +241,34 @@ func (um UserModel) GetByRefreshToken(refreshToken string) (*User, error) {
 	}
 
 	return &user, nil
+}
+func (um UserModel) GetToken(hashText [32]byte, scope string, expiry time.Time) (*User, error) {
+
+	query := `SELECT id, name, email, is_verified, phone_number, role, created_at
+			  FROM users 
+			  INNER JOIN tokens ON users.Id = tokens.user_id
+			  WHERE tokens.scope=$1 AND tokens.hash=$2 AND tokens.expiry >= $3`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	args := []interface{}{
+		scope,
+		hashText[:],
+		expiry,
+	}
+
+	var user User
+	err := um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Is_Verified, &user.Phone_Number, &user.Role, &user.Created_At)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+
 }
