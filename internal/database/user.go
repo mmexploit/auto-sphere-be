@@ -5,9 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	ErrDuplicateEmail       = errors.New("duplicate email")
+	ErrDuplicatePhoneNumber = errors.New("duplicate phone number")
 )
 
 type Role string
@@ -71,7 +77,19 @@ func (um UserModel) Create(user *User) error {
 				   VALUES ($1,$2,$3,$4,$5)
 				   RETURNING id, name, email, phone_number, role`
 	args := []interface{}{user.Name, user.Email, user.Password.hash, user.Phone_Number, user.Role}
-	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
+	err := um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role)
+
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "users_email_key"):
+			return ErrDuplicateEmail
+		case strings.Contains(err.Error(), "users_phone_number_key"):
+			return ErrDuplicatePhoneNumber
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 func (um UserModel) GetByEmail(email string) (User, error) {
@@ -142,7 +160,20 @@ func (um UserModel) Patch(user *User) error {
 		user.Id,
 	}
 
-	return um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role, &user.Is_Verified)
+	err := um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Phone_Number, &user.Role, &user.Is_Verified)
+
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "users_email_key"):
+			return ErrDuplicateEmail
+		case strings.Contains(err.Error(), "users_phone_number_key"):
+			return ErrDuplicatePhoneNumber
+		default:
+			return err
+		}
+	}
+	return nil
+
 }
 
 func (um UserModel) Delete(id int64) error {

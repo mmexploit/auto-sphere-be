@@ -45,9 +45,22 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	v := validator.New()
+	//TODO : validate input user here
+
 	if err := ser.models.Users.Create(&user); err != nil {
-		ser.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, database.ErrDuplicateEmail):
+			v.AddError("email", "a user with this email already exists.")
+			ser.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, database.ErrDuplicatePhoneNumber):
+			v.AddError("phone number", "a user with this phone number already exists.")
+			ser.failedValidationResponse(w, r, v.Errors)
+		default:
+			ser.serverErrorResponse(w, r, err)
+		}
 		return
+
 	}
 
 	token, err := ser.models.Tokens.New(user.Id, 3*24*time.Hour, database.ScopeActivation)
@@ -274,6 +287,8 @@ func (ser Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	v := validator.New()
+
 	access_token, err := ser.createToken(user, 10*time.Minute)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
@@ -289,7 +304,16 @@ func (ser Server) login(w http.ResponseWriter, r *http.Request) {
 
 	err = ser.models.Users.Patch(&user)
 	if err != nil {
-		ser.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, database.ErrDuplicateEmail):
+			v.AddError("email", "a user with this email already exists.")
+			ser.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, database.ErrDuplicatePhoneNumber):
+			v.AddError("phone number", "a user with this phone number already exists.")
+			ser.failedValidationResponse(w, r, v.Errors)
+		default:
+			ser.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
@@ -371,6 +395,11 @@ func (ser Server) activate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("User from token after update is :--- ", user)
+
+	if err = ser.models.Tokens.DeleteAllForUser(database.ScopeActivation, user.Id); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
 
 	err = ser.writeJSON(w, http.StatusOK, envelope{"user_activation": user.Is_Verified}, nil)
 	if err != nil {
