@@ -49,6 +49,12 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = ser.mailer.Send(user.Email, "user_welcome.tmpl", user)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
 	//return the result with the response write (write JSON)
 	headers := make(http.Header)
 	headers.Set("Location", fmt.Sprintf("/v1/users/%d", user.Id))
