@@ -168,7 +168,7 @@ func (sh ShopModel) GetAll(name, coordinate string, maxDistance int, filters Fil
 	args = append(args, name)
 
 	if len(categoryValues) > 0 {
-		fmt.Print("HELOOOOO BRUV")
+
 		baseQuery += ` AND category_members.value IN (` + generatePlaceholders(len(categoryValues)) + `)`
 		for _, value := range categoryValues {
 			args = append(args, value)
