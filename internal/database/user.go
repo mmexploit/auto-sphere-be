@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Mahider-T/autoSphere/validator"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -33,7 +35,19 @@ type User struct {
 	Phone_Number  string    `json:"phone_number"`
 	Role          Role      `json:"role"`
 	Created_At    time.Time `json:"-"`
-	Refresh_Token string    `json:"refresh_token"`
+	Refresh_Token *string   `json:"refresh_token"`
+}
+
+func ValidateUser(v *validator.Validator, u *User) {
+	var phoneRegex = regexp.MustCompile(`^(09|07)\d{8}$`)
+	var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
+	v.Check(u.Name != "", "name", "name must not be empty")
+	v.Check(u.Email != "", "email", "email must not be empty")
+	v.Check(validator.Matches(u.Email, emailRegex), "email", "not a valid email")
+	v.Check(u.Phone_Number != "", "phone_number", "phone number must not be empty")
+	v.Check(validator.Matches(u.Phone_Number, phoneRegex), "phone_number", "phone number must start with 07 or 09 and must be 10 digits long")
+	v.Check(u.Role != "", "role", "role must not be empty")
 }
 
 type UserModel struct {
@@ -277,7 +291,7 @@ func (um UserModel) GetByRefreshToken(refreshToken string) (*User, error) {
 }
 func (um UserModel) GetToken(hashText [32]byte, scope string, expiry time.Time) (*User, error) {
 
-	query := `SELECT id, name, email, is_verified, phone_number, role, created_at
+	query := `SELECT id, name, email, password, is_verified, phone_number, role, created_at
 			  FROM users 
 			  INNER JOIN tokens ON users.Id = tokens.user_id
 			  WHERE tokens.scope=$1 AND tokens.hash=$2 AND tokens.expiry >= $3`
@@ -292,7 +306,7 @@ func (um UserModel) GetToken(hashText [32]byte, scope string, expiry time.Time) 
 	}
 
 	var user User
-	err := um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Is_Verified, &user.Phone_Number, &user.Role, &user.Created_At)
+	err := um.db.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.Name, &user.Email, &user.Password.hash, &user.Is_Verified, &user.Phone_Number, &user.Role, &user.Created_At)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
