@@ -38,7 +38,7 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 		Coordinate:      input.Coordinate,
 		Thumbnail:       &input.Thumbnail,
 		Photos:          input.Photos,
-		Approval_Status: input.Approval_Status,
+		Approval_Status: database.PENDING,
 		Created_By:      int(userId),
 	}
 
