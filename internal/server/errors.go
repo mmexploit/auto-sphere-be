@@ -17,7 +17,7 @@ func (ser *Server) errorResponse(w http.ResponseWriter, r *http.Request, status 
 
 	envelope := envelope{"error": message}
 
-	if err := ser.writeJSON(w, http.StatusInternalServerError, envelope, nil); err != nil {
+	if err := ser.writeJSON(w, status, envelope, nil); err != nil {
 		ser.logError(r, err)
 	}
 
@@ -54,7 +54,7 @@ func (ser *Server) forbiddenErrorResponse(w http.ResponseWriter, r *http.Request
 }
 
 func (ser *Server) invalidCredentials(w http.ResponseWriter, r *http.Request) {
-	message := "Invalid username and password"
+	message := "Invalid username or password"
 	ser.errorResponse(w, r, http.StatusUnauthorized, message)
 }
 
