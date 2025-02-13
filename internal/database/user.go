@@ -51,6 +51,7 @@ func (p *password) Set(plaintextPassword string) error {
 	}
 	p.plaintext = &plaintextPassword
 	p.hash = hash
+
 	return nil
 }
 
@@ -148,7 +149,7 @@ func (um UserModel) Patch(user *User) error {
 
 	defer cancel()
 
-	query := `UPDATE users SET name=$1, email=$2, phone_number=$3, role=$4, refresh_token=$5, is_verified=$6 WHERE id=$7 RETURNING id, name, email, phone_number, role, is_verified`
+	query := `UPDATE users SET name=$1, email=$2, phone_number=$3, role=$4, refresh_token=$5, is_verified=$6, password=$7 WHERE id=$8 RETURNING id, name, email, phone_number, role, is_verified`
 
 	args := []interface{}{
 		user.Name,
@@ -157,6 +158,7 @@ func (um UserModel) Patch(user *User) error {
 		user.Role,
 		user.Refresh_Token,
 		user.Is_Verified,
+		user.Password.hash,
 		user.Id,
 	}
 

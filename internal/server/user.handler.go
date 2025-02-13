@@ -407,3 +407,131 @@ func (ser Server) activate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (ser Server) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+	}
+
+	if err := ser.readJSON(w, r, &input); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	user, err := ser.models.Users.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, database.ErrRecordNotFound):
+			ser.notFoundResponse(w, r)
+			return
+		default:
+			ser.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
+	token, err := ser.models.Tokens.New(user.Id, 30*time.Minute, database.ScopePasswordReset)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	go func() {
+
+		data := map[string]interface{}{
+			"frontEndURL": "http://autosphere.com",
+			"resetToken":  token.Plaintext,
+		}
+
+		err := ser.mailer.Send(user.Email, "password_reset.tmpl", data)
+
+		if err != nil {
+			ser.logger.PrintError(err, nil)
+			return
+		}
+
+	}()
+
+	err = ser.writeJSON(w, http.StatusCreated, envelope{"success": true}, nil)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+}
+
+func (ser Server) checkTokenExpiry(w http.ResponseWriter, r *http.Request) {
+
+	var input struct {
+		PlainText string `json:"plain_text"`
+	}
+
+	if err := ser.readJSON(w, r, &input); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	hash := sha256.Sum256([]byte(input.PlainText))
+	_, err := ser.models.Users.GetToken(hash, database.ScopePasswordReset, time.Now())
+
+	if err != nil {
+		switch {
+		case errors.Is(err, database.ErrRecordNotFound):
+			ser.writeJSON(w, http.StatusOK, envelope{"expired": "true"}, nil)
+			return
+		default:
+			ser.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
+	ser.writeJSON(w, http.StatusOK, envelope{"expired": "false"}, nil)
+
+}
+
+func (ser Server) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		PlainText   string `json:"plain_text"`
+		NewPassword string `json:"new_password"`
+	}
+
+	fmt.Println("WOW")
+
+	if err := ser.readJSON(w, r, &input); err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	fmt.Print(input)
+
+	hash := sha256.Sum256([]byte(input.PlainText))
+	user, err := ser.models.Users.GetToken(hash, database.ScopePasswordReset, time.Now())
+
+	if err != nil {
+		switch {
+		case errors.Is(err, database.ErrRecordNotFound):
+			ser.writeJSON(w, http.StatusBadRequest, envelope{"success": false}, nil)
+			return
+		default:
+			ser.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
+	pass := &user.Password
+
+	err = pass.Set(input.NewPassword)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = ser.models.Users.Patch(user)
+	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	ser.writeJSON(w, http.StatusOK, envelope{}, nil)
+
+}
