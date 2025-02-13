@@ -38,15 +38,17 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 		Phone_Number: input.Phone_Number,
 		Role:         input.Role,
 	}
+	v := validator.New()
+	if database.ValidateUser(v, &user); !v.Valid() {
+		ser.failedValidationResponse(w, r, v.Errors)
+		return
+	}
 
 	err := user.Password.Set(input.Password)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
-
-	v := validator.New()
-	//TODO : validate input user here
 
 	if err := ser.models.Users.Create(&user); err != nil {
 		switch {
@@ -189,7 +191,7 @@ func (ser Server) userPatch(w http.ResponseWriter, r *http.Request) {
 		user.Role = *input.Role
 	}
 	if input.Refresh_Token != nil {
-		user.Refresh_Token = *input.Refresh_Token
+		user.Refresh_Token = input.Refresh_Token
 	}
 
 	//Todo : Validate the input here
@@ -300,7 +302,7 @@ func (ser Server) login(w http.ResponseWriter, r *http.Request) {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
-	user.Refresh_Token = refresh_token
+	user.Refresh_Token = &refresh_token
 
 	err = ser.models.Users.Patch(&user)
 	if err != nil {
@@ -365,25 +367,19 @@ func (ser Server) activate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Plain text is :---", input.PlainText)
-
 	hash := sha256.Sum256([]byte(input.PlainText))
-
-	fmt.Println("Hash is :---- ", string(hash[:]))
 
 	user, err := ser.models.Users.GetToken(hash, database.ScopeActivation, time.Now())
 	if err != nil {
 		switch {
 		case errors.Is(err, database.ErrRecordNotFound):
-			ser.notFoundResponse(w, r)
+			ser.forbiddenErrorResponse(w, r)
 			return
 		default:
 			ser.serverErrorResponse(w, r, err)
 			return
 		}
 	}
-
-	fmt.Println("User from token before update is :--- ", user)
 
 	user.Is_Verified = true
 
@@ -393,8 +389,6 @@ func (ser Server) activate(w http.ResponseWriter, r *http.Request) {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
-
-	fmt.Println("User from token after update is :--- ", user)
 
 	if err = ser.models.Tokens.DeleteAllForUser(database.ScopeActivation, user.Id); err != nil {
 		ser.serverErrorResponse(w, r, err)
