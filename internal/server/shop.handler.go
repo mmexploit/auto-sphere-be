@@ -22,6 +22,7 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 		Category        []string                    `json:"category"`
 		Thumbnail       string                      `json:"thumbnail"`
 		Photos          []string                    `json:"photos"`
+		Files           []string                    `json:"files"`
 		Approval_Status database.ShopApprovalStatus `json:"approval_status"`
 	}
 
@@ -38,6 +39,7 @@ func (ser *Server) shopCreate(w http.ResponseWriter, r *http.Request) {
 		Coordinate:      input.Coordinate,
 		Thumbnail:       &input.Thumbnail,
 		Photos:          input.Photos,
+		Files:           input.Files,
 		Approval_Status: database.PENDING,
 		Created_By:      int(userId),
 	}

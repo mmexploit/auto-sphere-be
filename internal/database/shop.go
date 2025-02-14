@@ -31,6 +31,7 @@ type Shop struct {
 	Coordinate      string             `json:"coordinate"` // Should be in "longitude latitude" format
 	Thumbnail       *string            `json:"thumbnail"`
 	Photos          []string           `json:"photos"`
+	Files           []string           `json:"files"`
 	Created_At      time.Time          `json:"-"`
 	Created_By      int                `json:"created_by"`
 }
@@ -55,10 +56,10 @@ type ShopModel struct {
 func (sh ShopModel) Create(shop *Shop) error {
 	query := `
 		INSERT INTO shops 
-			(name, phone_number, email, location, coordinate, thumbnail,photos, approval_status, created_by)
+			(name, phone_number, email, location, coordinate, thumbnail,photos, approval_status, created_by, files)
 		VALUES 
-			($1, $2, $3, $4, ST_GeogFromText($5), $6, $7, $8, $9)
-		RETURNING id, name, phone_number, email, location, ST_AsText(coordinate), thumbnail, photos, created_at, approval_status, created_by;`
+			($1, $2, $3, $4, ST_GeogFromText($5), $6, $7, $8, $9, $10)
+		RETURNING id, name, phone_number, email, location, ST_AsText(coordinate), thumbnail, photos, created_at, approval_status, created_by, files;`
 
 	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
 	defer close()
@@ -72,8 +73,9 @@ func (sh ShopModel) Create(shop *Shop) error {
 		pq.Array(shop.Photos),
 		shop.Approval_Status,
 		shop.Created_By,
+		pq.Array(shop.Files),
 	}
-	return sh.db.QueryRowContext(ctx, query, args...).Scan(&shop.Id, &shop.Name, &shop.Phone_Number, &shop.Email, &shop.Location, &shop.Coordinate, &shop.Thumbnail, pq.Array(&shop.Photos), &shop.Created_At, &shop.Approval_Status, &shop.Created_By)
+	return sh.db.QueryRowContext(ctx, query, args...).Scan(&shop.Id, &shop.Name, &shop.Phone_Number, &shop.Email, &shop.Location, &shop.Coordinate, &shop.Thumbnail, pq.Array(&shop.Photos), &shop.Created_At, &shop.Approval_Status, &shop.Created_By, pq.Array(shop.Files))
 }
 
 func (sh ShopModel) Get(id int64) (*Shop, error) {
@@ -81,7 +83,7 @@ func (sh ShopModel) Get(id int64) (*Shop, error) {
 		return nil, ErrRecordNotFound
 	}
 
-	query := `SELECT id, name, phone_number, email, location, ST_AsText(coordinate), thumbnail, photos, created_at, approval_status, created_by FROM shops WHERE id=$1`
+	query := `SELECT id, name, phone_number, email, location, ST_AsText(coordinate), thumbnail, photos, created_at, approval_status, created_by, files FROM shops WHERE id=$1`
 
 	var shop Shop
 	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
@@ -89,7 +91,7 @@ func (sh ShopModel) Get(id int64) (*Shop, error) {
 
 	err := sh.db.QueryRowContext(ctx, query, id).Scan(
 		&shop.Id, &shop.Name, &shop.Phone_Number, &shop.Email,
-		&shop.Location, &shop.Coordinate, &shop.Thumbnail, pq.Array(&shop.Photos), &shop.Created_At, &shop.Approval_Status, &shop.Created_By,
+		&shop.Location, &shop.Coordinate, &shop.Thumbnail, pq.Array(&shop.Photos), &shop.Created_At, &shop.Approval_Status, &shop.Created_By, pq.Array(shop.Files),
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
