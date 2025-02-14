@@ -489,14 +489,10 @@ func (ser Server) resetPassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"new_password"`
 	}
 
-	fmt.Println("WOW")
-
 	if err := ser.readJSON(w, r, &input); err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
-
-	fmt.Print(input)
 
 	hash := sha256.Sum256([]byte(input.PlainText))
 	user, err := ser.models.Users.GetToken(hash, database.ScopePasswordReset, time.Now())
@@ -522,6 +518,11 @@ func (ser Server) resetPassword(w http.ResponseWriter, r *http.Request) {
 
 	err = ser.models.Users.Patch(user)
 	if err != nil {
+		ser.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if err = ser.models.Tokens.DeleteAllForUser(database.ScopePasswordReset, user.Id); err != nil {
 		ser.serverErrorResponse(w, r, err)
 		return
 	}
