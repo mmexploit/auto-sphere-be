@@ -9,6 +9,9 @@ import (
 func (s *Server) RegisterRoutes() http.Handler {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("POST /file/upload", s.uploadFile)
+	mux.HandleFunc("GET /file/fetch", s.fetchFile)
+	mux.HandleFunc("DELETE /file", s.deleteFile)
 	// Register routes
 	// mux.HandleFunc("/", s.HelloWorldHandler)
 	mux.HandleFunc("GET /token/expired", s.checkTokenExpiry)

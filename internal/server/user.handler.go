@@ -94,6 +94,7 @@ func (ser *Server) userCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ser Server) userGetOne(w http.ResponseWriter, r *http.Request) {
+
 	id, err := ser.readIDParam(r)
 	if err != nil {
 		ser.serverErrorResponse(w, r, err)
@@ -111,8 +112,6 @@ func (ser Server) userGetOne(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	fmt.Print(user)
 	err = ser.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 
 	if err != nil {
