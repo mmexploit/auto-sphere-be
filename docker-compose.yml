@@ -1,15 +1,80 @@
+version: '3.8'  
+
 services:
-  psql_bp:
-    image: postgres:latest
-    restart: unless-stopped
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: autosphere_database
     environment:
-      POSTGRES_DB: ${BLUEPRINT_DB_DATABASE}
-      POSTGRES_USER: ${BLUEPRINT_DB_USERNAME}
-      POSTGRES_PASSWORD: ${BLUEPRINT_DB_PASSWORD}
-    ports:
-      - "${BLUEPRINT_DB_PORT}:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}  
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}  
+      POSTGRES_DB: ${POSTGRES_DB:-autosphere}  
     volumes:
-      - psql_volume_bp:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data  
+    ports:
+      - "5430:5432"  
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      retries: 3
+      timeout: 5s
+    networks:
+      - autosphere_network  
+
+  app:
+    build: .
+    container_name: autosphere_app
+    environment:
+      PORT: 4321
+      APP_ENV: local
+      BLUEPRINT_DB_HOST: postgres
+      BLUEPRINT_DB_PORT: 5432
+      BLUEPRINT_DB_DATABASE: ${POSTGRES_DB:-autosphere}  
+      BLUEPRINT_DB_USERNAME: ${POSTGRES_USER:-postgres}  
+      BLUEPRINT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}  
+      BLUEPRINT_DB_SCHEMA: public
+      SMTP_HOST: sandbox.smtp.mailtrap.io
+      SMTP_PORT: 25
+      SMTP_USERNAME: 001e820830e337
+      SMTP_PASSWORD: 7c3129eb807367
+      SMTP_SENDER: mahider@autosphere.com
+      SFS_MASTER_SERVER: http://localhost:9333/dir/assign
+      SFS_VOLUME_SERVER: http://localhost:8080
+      SFS_MASTER_LOOKUP: http://localhost:9333/dir/lookup
+    depends_on:
+      postgres:
+        condition: service_healthy  
+    ports:
+      - "4321:4321"  
+    command: ["./main"]
+    restart: always  
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m" 
+        max-file: "3"  
+    networks:
+      - autosphere_network  
+
+  autosphere_migrate:
+    image: migrate/migrate
+    volumes:
+      - ./migration:/migration  
+    command:
+      - "-path"
+      - "/migration"
+      - "-database"
+      - "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-autosphere}?sslmode=disable"  
+      - "up"
+    depends_on:
+      - postgres 
+    restart: on-failure  
+    networks:
+      - autosphere_network  
 
 volumes:
-  psql_volume_bp:
+  postgres_data:  
+
+networks:
+  autosphere_network:  
+
+
