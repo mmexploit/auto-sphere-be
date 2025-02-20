@@ -59,7 +59,7 @@ services:
     image: migrate/migrate
     volumes:
       - ./migrations:/migration 
-   command:
+    command:
       - "-path=/migration"  # Explicitly set the path to the migration files
       - "-database=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-autosphere}?sslmode=disable"
       - "up"
