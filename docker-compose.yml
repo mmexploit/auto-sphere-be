@@ -58,7 +58,7 @@ services:
   autosphere_migrate:
     image: migrate/migrate
     volumes:
-      - ${PWD}/migrations:/migration 
+      - ./migrations:/migration 
     command:
       - "-path"
       - "/migration"
