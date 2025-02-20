@@ -57,8 +57,8 @@ services:
 
   autosphere_migrate:
     image: migrate/migrate
-    volumes:
-      - ./migration:/migration  
+    # volumes:
+      # - ./migration:/migration  
     command:
       - "-path"
       - "/migration"
