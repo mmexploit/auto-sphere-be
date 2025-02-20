@@ -60,11 +60,11 @@ services:
     volumes:
       - ./migrations:/migration 
     command:
-     - /bin/sh
-     - "-c"
-     - |
-        sleep 5
-        migrate -path /migration -database "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-autosphere}?sslmode=disable" up
+      - "-path"
+      - "/migration"
+      - "-database"
+      - "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-autosphere}?sslmode=disable"  
+      - "up"
     depends_on:
       - postgres 
     restart: on-failure  
